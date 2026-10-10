@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Field Goal Frenzy</title>
+<style>
+  :root { --orange:#f28c28; --navy:#0b1f3a; --green:#176b43; --cream:#fff8e9; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; background:#071526; color:var(--cream); font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  body { display:flex; justify-content:center; align-items:center; padding:12px; }
+  .shell { width:min(100%,760px); background:linear-gradient(160deg,#12365a,#08172a 65%); border:1px solid #294763; border-radius:22px; padding:16px; box-shadow:0 18px 55px #0008; }
+  header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+  .brand { font-weight:950; letter-spacing:.06em; line-height:1; font-size:clamp(22px,5vw,34px); }
+  .brand span { color:var(--orange); }
+  .tag { font-size:11px; letter-spacing:.14em; color:#b9cde0; margin-top:6px; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:12px 0; }
+  .stat { background:#061322b8; border:1px solid #24425c; border-radius:12px; padding:8px; text-align:center; }
+  .stat small { display:block; color:#a9c1d7; font-size:10px; letter-spacing:.1em; font-weight:800; }
+  .stat strong { font-size:clamp(20px,4vw,28px); }
+  .field-wrap { position:relative; border-radius:16px; overflow:hidden; border:2px solid #52745d; background:#167448; }
+  canvas { width:100%; height:auto; display:block; touch-action:manipulation; }
+  .message { min-height:26px; text-align:center; padding:10px 4px 2px; font-weight:800; color:#ffe2a8; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px; }
+  button { font:inherit; border:0; border-radius:12px; padding:13px 10px; font-weight:900; cursor:pointer; color:#08172a; background:var(--orange); box-shadow:0 4px 0 #a74c11; touch-action:manipulation; }
+  button.secondary { background:#dce8f3; box-shadow:0 4px 0 #8298ac; }
+  button:active { transform:translateY(2px); box-shadow:0 2px 0 #a74c11; }
+  .instructions { color:#c4d4e2; font-size:12px; line-height:1.45; margin:12px 2px 2px; }
+  .instructions b { color:#fff; }
+  .overlay { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:#04101ed9; padding:20px; text-align:center; }
+  .panel { max-width:390px; }
+  .panel h2 { font-size:clamp(27px,6vw,42px); line-height:1; margin:0 0 10px; }
+  .panel p { color:#d1dfec; margin:0 0 16px; }
+  .panel button { width:100%; }
+  .hidden { display:none; }
+  @media (min-width:620px) { .shell { padding:22px; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div>
+      <div class="brand">FIELD GOAL <span>FRENZY</span></div>
+      <div class="tag">COLLEGE FOOTBALL • KICKING CHALLENGE</div>
+    </div>
+    <div style="font-size:28px" aria-hidden="true">🏈</div>
+  </header>
+  <div class="stats">
+    <div class="stat"><small>SCORE</small><strong id="score">0</strong></div>
+    <div class="stat"><small>KICKS LEFT</small><strong id="kicks">10</strong></div>
+    <div class="stat"><small>BEST</small><strong id="best">0</strong></div>
+  </div>
+  <div class="field-wrap">
+    <canvas id="game" width="700" height="440" aria-label="Field goal kicking game"></canvas>
+    <div class="overlay" id="startOverlay">
+      <div class="panel">
+        <h2>MAKE IT<br><span style="color:#f28c28">COUNT.</span></h2>
+        <p>Time your kick, aim through the uprights, and score big. Longer kicks earn more points!</p>
+        <button id="startBtn">START KICKING</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="endOverlay">
+      <div class="panel">
+        <h2 id="endTitle">FINAL SCORE</h2>
+        <p id="endText"></p>
+        <button id="againBtn">PLAY AGAIN</button>
+      </div>
+    </div>
+  </div>
+  <div class="message" id="message">Ready to take the field?</div>
+  <div class="controls">
+    <button id="aimBtn">AIM: CENTER</button>
+    <button id="kickBtn">KICK! ⚡</button>
+  </div>
+  <div class="instructions">
+    <b>How to play:</b> Tap <b>AIM</b> to cycle left, center, and right. Tap <b>KICK</b> when the moving power meter is in the green zone. On a computer, use ← / → to aim and Space to kick. You get 10 attempts; distance and accuracy affect your points.
+  </div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('game'), ctx = canvas.getContext('2d');
+  const $ = id => document.getElementById(id);
+  let running=false, score=0, kicks=10, aim=1, power=0.5, powerDir=1, anim=0, flight=null, last=0, best=0;
+  try { best = Number(localStorage.getItem('fgfBest') || 0); } catch(e) {}
+  $('best').textContent=best;
+  const lanes=['LEFT','CENTER','RIGHT'];
+  function resizeCanvas(){ /* CSS scales the fixed logical canvas responsively. */ }
+  function drawField(){
+    const w=canvas.width,h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+    const sky=ctx.createLinearGradient(0,0,0,h); sky.addColorStop(0,'#7ec8ef'); sky.addColorStop(.55,'#d6f0ff'); sky.addColorStop(.56,'#1b8b51'); sky.addColorStop(1,'#11633d');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
+    // stadium stands and crowd
+    ctx.fillStyle='#173d62';ctx.fillRect(0,140,w,65);
+    for(let y=146;y<198;y+=12) for(let x=8;x<w;x+=18){ctx.fillStyle=['#f6b64a','#f4f0df','#e66b4e','#8fc7d9'][((x+y)/6|0)%4];ctx.fillRect(x,y,8,5);}
+    // field stripes
+    ctx.fillStyle='#187747';ctx.fillRect(0,205,w,h-205);
+    for(let i=0;i<9;i++){let y=214+i*29;ctx.strokeStyle=i%2?'#2d955c':'#238650';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    ctx.strokeStyle='#e5f4e7';ctx.lineWidth=3;
+    for(let i=0;i<7;i++){let x=35+i*105;ctx.beginPath();ctx.moveTo(x,218);ctx.lineTo(x,430);ctx.stroke();}
+    // end zone
+    ctx.fillStyle='#123b67';ctx.fillRect(0,205,w,30);
+    ctx.fillStyle='#fff';ctx.font='bold 17px system-ui';ctx.textAlign='center';ctx.fillText('FIELD GOAL FRENZY',w/2,226);
+    // uprights perspective
+    const gx=350, gy=90;
+    ctx.strokeStyle='#f7a928';ctx.lineWidth=10;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(gx,gy+105);ctx.lineTo(gx,gy);ctx.lineTo(gx-92,gy);ctx.moveTo(gx,gy);ctx.lineTo(gx+92,gy);ctx.stroke();
+    ctx.strokeStyle='#ffe1a0';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(gx-88,gy-2);ctx.lineTo(gx+88,gy-2);ctx.stroke();
+    // football at kick spot or flight
+    if(!flight){
+      const bx=aim===0?315:aim===2?385:350;
+      drawBall(bx,350,1);
+      ctx.fillStyle='#fff';ctx.font='bold 15px system-ui';ctx.fillText('KICK FROM HERE',350,395);
+    } else {
+      const t=flight.t, x=flight.x0+(flight.x1-flight.x0)*t, y=flight.y0+(flight.y1-flight.y0)*t-115*Math.sin(Math.PI*t);
+      drawBall(x,y,1.1-0.35*t);
+    }
+    // power meter
+    ctx.fillStyle='#071a2b';ctx.fillRect(130,18,440,20);
+    ctx.fillStyle='#d9534f';ctx.fillRect(134,22,432,12);
+    ctx.fillStyle='#f4c542';ctx.fillRect(265,22,170,12);
+    ctx.fillStyle='#52d273';ctx.fillRect(315,22,70,12);
+    ctx.fillStyle='#fff';ctx.fillRect(134+power*432-4,16,8,24);
+    ctx.textAlign='center';ctx.font='bold 11px system-ui';ctx.fillText('POWER',350,54);
+    if(running&&!flight){ctx.fillStyle='#08233b';ctx.font='bold 13px system-ui';ctx.fillText('AIM: '+lanes[aim],350,75);}
+  }
+  function drawBall(x,y,s){
+    ctx.save();ctx.translate(x,y);ctx.rotate(-.25);ctx.scale(s,s);
+    ctx.fillStyle='#7c3f1b';ctx.beginPath();ctx.ellipse(0,0,17,10,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#f8e4c6';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-5,-7);ctx.lineTo(-5,7);ctx.moveTo(-2,-3);ctx.lineTo(5,-3);ctx.moveTo(-2,1);ctx.lineTo(5,1);ctx.stroke();
+    ctx.restore();
+  }
+  function loop(ts){
+    if(!running){drawField();return;}
+    if(!last)last=ts; const dt=Math.min((ts-last)/1000,.04);last=ts;
+    if(!flight){power+=powerDir*dt*.8;if(power>=1){power=1;powerDir=-1;}if(power<=0){power=0;powerDir=1;}}
+    if(flight){flight.t+=dt*1.25;if(flight.t>=1){resolveKick();}}
+    drawField();anim=requestAnimationFrame(loop);
+  }
+  function updateStats(){ $('score').textContent=score; $('kicks').textContent=kicks; $('best').textContent=best; }
+  function start(){score=0;kicks=10;aim=1;power=.1;powerDir=1;flight=null;running=true;last=0;$('startOverlay').classList.add('hidden');$('endOverlay').classList.add('hidden');$('message').textContent='Find the green zone for maximum power!';updateStats();cancelAnimationFrame(anim);anim=requestAnimationFrame(loop);}
+  function kick(){
+    if(!running||flight)return;
+    const distance= aim===1 ? 35 : 45;
+    const centerBonus = aim===1 ? 1 : 0;
+    const inGreen = power>=.42 && power<=.58;
+    const accuracy = inGreen ? 1 : (Math.abs(power-.5)<.25 ? .65 : .3);
+    const x0=aim===0?315:aim===2?385:350;
+    // Aimed outside center has a harder trajectory, with a wider miss risk.
+    const laneOffset=aim===0?-58:aim===2?58:0;
+    const made = (accuracy===1 && aim===1) || (accuracy>=.65 && Math.random() < (aim===1?.88:.66)) || (accuracy<.65 && Math.random()<.3);
+    flight={t:0,x0,y0:350,x1:350+laneOffset*(1-accuracy*.35),made,points: made ? (distance + (inGreen?15:0) + centerBonus*5) : 0, distance, inGreen};
+    $('message').textContent=inGreen?'Perfect power — follow through!':'Kick is away...';
+  }
+  function resolveKick(){
+    if(!flight)return;
+    const f=flight;flight=null;kicks--;
+    if(f.made){score+=f.points;$('message').textContent=`GOOD! +${f.points} points${f.inGreen?' — perfect power!':''}`;}
+    else {$('message').textContent='NO GOOD! Adjust your aim and power.';}
+    updateStats();
+    if(kicks<=0){
+      running=false;
+      if(score>best){best=score;try{localStorage.setItem('fgfBest',String(best));}catch(e){}}
+      updateStats();$('endTitle').textContent=score>=400?'LEGENDARY KICKER!':score>=250?'GREAT GAME!':'FINAL SCORE';
+      $('endText').textContent=`You scored ${score} points. Best score: ${best}. Ready for another round?`;
+      $('endOverlay').classList.remove('hidden');
+      drawField();
+    } else {drawField();}
+  }
+  $('startBtn').addEventListener('click',start);
+  $('againBtn').addEventListener('click',start);
+  $('aimBtn').addEventListener('click',()=>{if(!running||flight)return;aim=(aim+1)%3;$('aimBtn').textContent='AIM: '+lanes[aim];drawField();});
+  $('kickBtn').addEventListener('click',kick);
+  window.addEventListener('keydown',e=>{
+    if(e.code==='Space'){e.preventDefault();if(!running)start();else kick();}
+    if(e.code==='ArrowLeft'&&running&&!flight){aim=(aim+2)%3;$('aimBtn').textContent='AIM: '+lanes[aim];drawField();}
+    if(e.code==='ArrowRight'&&running&&!flight){aim=(aim+1)%3;$('aimBtn').textContent='AIM: '+lanes[aim];drawField();}
+  });
+  drawField();
+})();
+</script>
+</body>
+</html>
