@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Gooseneck Field Goal Challenge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        .font-arcade { font-family: 'Press Start 2P', monospace; }
+        body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #f8fafc; overflow-x: hidden; user-select: none; }
+        .arcade-shadow { box-shadow: 0 0 35px rgba(56, 189, 248, 0.35); }
+        .arcade-border { border: 4px solid #38bdf8; }
+        canvas { touch-action: none; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-3 sm:p-5 bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-950">
+
+    <header class="w-full max-w-4xl flex flex-col md:flex-row items-center justify-between bg-slate-900/90 border-2 border-cyan-500/50 rounded-2xl p-4 shadow-xl backdrop-blur-md mb-3 gap-3">
+        <div class="flex items-center space-x-3">
+            <div class="bg-amber-500 text-slate-950 p-2.5 rounded-xl font-arcade text-xl shadow-lg">🏈</div>
+            <div>
+                <h1 class="font-arcade text-cyan-400 text-sm md:text-base tracking-wider">GOOSENECK KICKER</h1>
+                <p class="text-xs text-slate-400 font-medium">Calibrated 3D Physics & Progressive Aiming Speed</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center space-x-4 md:space-x-6 bg-slate-950 px-5 py-2.5 rounded-xl border border-cyan-500/30">
+            <div class="text-center">
+                <span class="block text-[9px] font-arcade text-slate-400">SCORE</span>
+                <span id="score-val" class="font-arcade text-cyan-300 text-base md:text-lg">0</span>
+            </div>
+            <div class="h-8 w-px bg-slate-800"></div>
+            <div class="text-center">
+                <span class="block text-[9px] font-arcade text-slate-400">ATTEMPT</span>
+                <div id="kick-tracker" class="flex items-center space-x-1 mt-1">
+                    <span id="kick-dot-1" class="w-3 h-3 rounded-full bg-cyan-400 inline-block"></span>
+                    <span id="kick-dot-2" class="w-3 h-3 rounded-full bg-slate-700 inline-block"></span>
+                    <span id="kick-dot-3" class="w-3 h-3 rounded-full bg-slate-700 inline-block"></span>
+                </div>
+            </div>
+            <div class="h-8 w-px bg-slate-800"></div>
+            <div class="text-center">
+                <span class="block text-[9px] font-arcade text-slate-400">BEST</span>
+                <span id="high-score-val" class="font-arcade text-emerald-400 text-base md:text-lg">0</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="w-full max-w-4xl flex flex-col items-center relative">
+        <div class="relative w-full max-w-3xl aspect-[4/3] sm:aspect-[16/10] bg-slate-950 rounded-3xl overflow-hidden arcade-border arcade-shadow">
+            <canvas id="gameCanvas" class="w-full h-full block cursor-pointer"></canvas>
+            
+            <!-- Wind HUD Widget -->
+            <div class="absolute top-4 left-4 bg-slate-950/85 backdrop-blur-md border border-cyan-500/30 px-3.5 py-2 rounded-xl flex items-center space-x-3 pointer-events-none shadow-md">
+                <div class="font-arcade text-[10px] text-cyan-300">WIND:</div>
+                <div id="wind-indicator" class="font-arcade text-xs text-amber-400 flex items-center space-x-1">
+                    <span>➡️</span> <span id="wind-speed">5 MPH</span>
+                </div>
+            </div>
+
+            <!-- Distance & Aiming Speed HUD Widget -->
+            <div class="absolute top-4 right-4 bg-slate-950/85 backdrop-blur-md border border-cyan-500/30 px-3.5 py-2 rounded-xl pointer-events-none shadow-md text-right">
+                <div class="font-arcade text-[9px] text-slate-400">DISTANCE</div>
+                <div id="distance-val" class="font-arcade text-xs md:text-sm text-cyan-400 mb-1">35 YARDS</div>
+                <div class="font-arcade text-[8px] text-amber-400" id="speed-label">AIM SPEED: 1.0x</div>
+            </div>
+
+            <!-- Start / Instructions Overlay -->
+            <div id="instruction-overlay" class="absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300 z-20">
+                <div class="max-w-md bg-slate-900 border-2 border-cyan-400 p-6 rounded-2xl shadow-2xl">
+                    <h2 class="font-arcade text-cyan-400 text-sm md:text-lg mb-3">CALibrated GOOSENECK KICK</h2>
+                    <p class="text-slate-300 text-xs md:text-sm mb-5 leading-relaxed text-left space-y-2">
+                        • <strong>3 Attempt Session:</strong> Score as high as you can!<br>
+                        • <strong>Calibrated Aiming:</strong> The football travels exactly where you aim! Stop outside the uprights and it will miss wide.<br>
+                        • <strong>Increasing Difficulty:</strong> Aim reticle moves faster on Kick 2 and Kick 3!<br>
+                        • <strong>Controls:</strong> Click, Tap or press <kbd class="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-cyan-300">SPACE</kbd> to lock reticle and power.
+                    </p>
+                    <button id="start-btn" class="w-full py-3.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-arcade text-xs md:text-sm font-bold rounded-xl shadow-lg transition-transform transform active:scale-95 cursor-pointer">
+                        START KICKING 🏈
+                    </button>
+                </div>
+            </div>
+
+            <!-- Result Banner Overlay -->
+            <div id="result-banner" class="absolute inset-x-0 top-1/3 flex justify-center items-center pointer-events-none opacity-0 transition-all duration-300 scale-75 z-10">
+                <div id="result-text" class="font-arcade text-xl md:text-3xl px-6 py-3 rounded-2xl shadow-2xl border-4 bg-slate-950/90 text-center tracking-wider">
+                    IT'S GOOD!
+                </div>
+            </div>
+
+            <!-- Game Over Overlay -->
+            <div id="gameover-overlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center transition-opacity duration-300 opacity-0 pointer-events-none z-30">
+                <div class="max-w-md w-full bg-slate-900 border-2 border-amber-400 p-6 rounded-2xl shadow-2xl">
+                    <h2 class="font-arcade text-amber-400 text-lg md:text-xl mb-2">SESSION OVER</h2>
+                    <p class="text-slate-400 text-xs mb-4 font-arcade">FINAL PERFORMANCE</p>
+                    
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-5 space-y-3">
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 font-arcade">KICKS MADE:</span>
+                            <span id="summary-made" class="font-arcade text-cyan-300 text-sm">0 / 3</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 font-arcade">TOTAL SCORE:</span>
+                            <span id="summary-score" class="font-arcade text-amber-400 text-base">0 PTS</span>
+                        </div>
+                        <div class="flex justify-between items-center text-xs">
+                            <span class="text-slate-400 font-arcade">HIGH SCORE:</span>
+                            <span id="summary-high" class="font-arcade text-emerald-400 text-sm">0 PTS</span>
+                        </div>
+                    </div>
+
+                    <button id="restart-btn" class="w-full py-3.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-arcade text-xs md:text-sm font-bold rounded-xl shadow-lg transition-transform transform active:scale-95 cursor-pointer">
+                        PLAY AGAIN 🏈
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Footer Bar -->
+        <div class="w-full max-w-3xl mt-3 flex flex-wrap items-center justify-between bg-slate-900/80 border border-slate-800 px-5 py-2.5 rounded-2xl backdrop-blur-md gap-2">
+            <div class="flex items-center space-x-2">
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-xs text-slate-300 font-medium">Click, Tap or Press <kbd class="px-2 py-0.5 bg-slate-800 border border-slate-700 rounded text-cyan-400 font-mono text-[10px]">SPACE</kbd></span>
+            </div>
+            <button id="download-btn" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-cyan-300 font-semibold rounded-xl transition-colors cursor-pointer flex items-center space-x-2">
+                <span>💾 Download Game</span>
+            </button>
+        </div>
+    </main>
+
+    <footer class="mt-4 text-center text-[11px] text-slate-500">
+        Gridiron Gooseneck Edition &bull; Standalone HTML5 Canvas & Web Audio
+    </footer>
+
+    <script>
+        class SoundEngine {
+            constructor() {
+                this.ctx = null;
+            }
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+            playTone(freq, type = 'sine', duration = 0.1, gainVal = 0.15) {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = type;
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + duration);
+                } catch(e) {}
+            }
+            playKick() {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(170, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(25, this.ctx.currentTime + 0.35);
+                    gain.gain.setValueAtTime(0.7, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.35);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.35);
+                } catch(e) {}
+            }
+            playRefWhistle() {
+                try {
+                    this.init();
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(1800, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(2200, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.3);
+                } catch(e) {}
+            }
+            playSuccess() {
+                try {
+                    this.init();
+                    this.playRefWhistle();
+                    setTimeout(() => {
+                        const chord = [392, 493.88, 587.33, 783.99]; // G Major
+                        chord.forEach((freq, idx) => {
+                            setTimeout(() => this.playTone(freq, 'triangle', 0.3, 0.2), idx * 60);
+                        });
+                    }, 150);
+                } catch(e) {}
+            }
+            playFail() {
+                try {
+                    this.init();
+                    const notes = [260, 220, 180, 140];
+                    notes.forEach((freq, idx) => {
+                        setTimeout(() => this.playTone(freq, 'sawtooth', 0.22, 0.18), idx * 90);
+                    });
+                } catch(e) {}
+            }
+        }
+
+        const sound = new SoundEngine();
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const MAX_KICKS = 3;
+        // Aiming speeds for Kicks 1, 2, and 3
+        const AIM_SPEED_MULTIPLIERS = [1.0, 1.65, 2.4];
+
+        const state = {
+            phase: 'IDLE', // IDLE, AIMING, POWER, KICKING, RESULT, GAMEOVER
+            currentKick: 1,
+            score: 0,
+            kicksMade: 0,
+            highScore: localStorage.getItem('gooseneck_high_score') || 0,
+            distance: 35,
+            wind: 0,
+            aimAngle: 0, // -1 to +1 normalized screen sweep
+            aimDir: 1,
+            aimSpeedMult: 1.0,
+            power: 0, // 0 to 1
+            powerDir: 1,
+            ball: { x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, spin: 0, resolved: false },
+            particles: [],
+            crowd: [],
+            flagTimer: 0,
+            cameraShake: 0
+        };
+
+        document.getElementById('high-score-val').textContent = state.highScore;
+
+        // Initialize crowd spectators
+        for (let i = 0; i < 50; i++) {
+            state.crowd.push({
+                x: Math.random() * 1200,
+                color: ['#38bdf8', '#ef4444', '#10b981', '#f59e0b', '#a855f7'][Math.floor(Math.random() * 5)],
+                offset: Math.random() * Math.PI * 2,
+                speed: 2 + Math.random() * 3
+            });
+        }
+
+        function updateKickTrackerUI() {
+            for (let i = 1; i <= MAX_KICKS; i++) {
+                const dot = document.getElementById(`kick-dot-${i}`);
+                if (i < state.currentKick) {
+                    dot.className = 'w-3 h-3 rounded-full bg-emerald-400 inline-block shadow-sm';
+                } else if (i === state.currentKick) {
+                    dot.className = 'w-3 h-3 rounded-full bg-cyan-400 inline-block animate-ping shadow-sm';
+                } else {
+                    dot.className = 'w-3 h-3 rounded-full bg-slate-700 inline-block';
+                }
+            }
+        }
+
+        function resetKickRound() {
+            updateKickTrackerUI();
+
+            state.aimAngle = (Math.random() - 0.5) * 0.3;
+            state.aimDir = Math.random() > 0.5 ? 1 : -1;
+            state.power = 0;
+            state.powerDir = 1;
+            
+            // Progressive Aiming Speed
+            state.aimSpeedMult = AIM_SPEED_MULTIPLIERS[state.currentKick - 1];
+            document.getElementById('speed-label').textContent = `AIM SPEED: ${state.aimSpeedMult.toFixed(1)}x`;
+
+            // Randomize distance & wind per kick
+            state.distance = 30 + (state.currentKick - 1) * 10 + Math.floor(Math.random() * 5);
+            state.wind = Math.floor((Math.random() - 0.5) * 32);
+
+            const windEl = document.getElementById('wind-indicator');
+            if (state.wind === 0) {
+                windEl.innerHTML = `<span>CALM</span>`;
+            } else if (state.wind > 0) {
+                windEl.innerHTML = `<span>➡️</span> <span>${Math.abs(state.wind)} MPH E</span>`;
+            } else {
+                windEl.innerHTML = `<span>⬅️</span> <span>${Math.abs(state.wind)} MPH W</span>`;
+            }
+
+            document.getElementById('distance-val').textContent = `${state.distance} YARDS`;
+            state.phase = 'AIMING';
+        }
+
+        function spawnConfetti(x, y) {
+            const colors = ['#38bdf8', '#facc15', '#4ade80', '#f43f5e', '#a855f7'];
+            for (let i = 0; i < 60; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 3 + Math.random() * 8;
+                state.particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 2,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    alpha: 1,
+                    decay: 0.01 + Math.random() * 0.015,
+                    size: 4 + Math.random() * 5
+                });
+            }
+        }
+
+        function drawStadium(width, height) {
+            // Sky gradient
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, height * 0.45);
+            skyGrad.addColorStop(0, '#030712');
+            skyGrad.addColorStop(1, '#1e1b4b');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, width, height);
+
+            // Light beams
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.035)';
+            ctx.beginPath();
+            ctx.moveTo(width * 0.1, 0); ctx.lineTo(0, height * 0.5); ctx.lineTo(width * 0.3, height * 0.5); ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(width * 0.9, 0); ctx.lineTo(width * 0.7, height * 0.5); ctx.lineTo(width, height * 0.5); ctx.fill();
+
+            // Crowd seating horizon
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, height * 0.32, width, height * 0.16);
+
+            const time = Date.now() * 0.005;
+            state.crowd.forEach((c) => {
+                const bounce = Math.sin(time * c.speed + c.offset) * 2;
+                ctx.fillStyle = c.color;
+                ctx.fillRect((c.x % width), height * 0.36 + bounce, 4, 6);
+            });
+
+            // Turf Field
+            const fieldGrad = ctx.createLinearGradient(0, height * 0.48, 0, height);
+            fieldGrad.addColorStop(0, '#15803d');
+            fieldGrad.addColorStop(1, '#14532d');
+            ctx.fillStyle = fieldGrad;
+            ctx.fillRect(0, height * 0.48, width, height * 0.52);
+
+            // Perspective yard lines
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.lineWidth = 2;
+            const horizonY = height * 0.48;
+            const bottomY = height;
+            
+            for (let i = 0; i <= 6; i++) {
+                const progress = i / 6;
+                const y = horizonY + Math.pow(progress, 1.8) * (bottomY - horizonY);
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+
+            // Endzone line hashmarks
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(width * 0.35, horizonY); ctx.lineTo(width * 0.35, bottomY);
+            ctx.moveTo(width * 0.65, horizonY); ctx.lineTo(width * 0.65, bottomY);
+            ctx.stroke();
+        }
+
+        function drawGooseneckGoalpost(width, height) {
+            const horizonY = height * 0.48;
+            const centerX = width / 2;
+            
+            // Anchor Pad
+            const basePadX = centerX;
+            const basePadY = horizonY + 38;
+            
+            // Crossbar & Uprights Dimensions
+            const crossbarY = horizonY - 35;
+            const postWidth = 160; // Upright width in perspective
+            const uprightHeight = 125;
+
+            // 1. Single Central Padded Base Post
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.ellipse(basePadX, basePadY, 11, 18, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#d97706';
+            ctx.fillRect(basePadX - 8, basePadY - 18, 16, 20);
+
+            // 2. Curved Gooseneck Neck Pipe
+            ctx.strokeStyle = '#facc15';
+            ctx.lineWidth = 10;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.shadowColor = 'rgba(250, 204, 21, 0.4)';
+            ctx.shadowBlur = 10;
+
+            ctx.beginPath();
+            ctx.moveTo(basePadX, basePadY - 14);
+            ctx.quadraticCurveTo(centerX, crossbarY + 25, centerX, crossbarY);
+            ctx.stroke();
+
+            // 3. Horizontal Crossbar
+            ctx.beginPath();
+            ctx.moveTo(centerX - postWidth / 2 - 6, crossbarY);
+            ctx.lineTo(centerX + postWidth / 2 + 6, crossbarY);
+            ctx.stroke();
+
+            // 4. Twin Upright Posts
+            ctx.lineWidth = 8;
+            const leftUprightX = centerX - postWidth / 2;
+            const rightUprightX = centerX + postWidth / 2;
+            const topUprightY = crossbarY - uprightHeight;
+
+            ctx.beginPath();
+            ctx.moveTo(leftUprightX, crossbarY); ctx.lineTo(leftUprightX, topUprightY);
+            ctx.moveTo(rightUprightX, crossbarY); ctx.lineTo(rightUprightX, topUprightY);
+            ctx.stroke();
+
+            ctx.shadowBlur = 0;
+
+            // 5. Red Wind Streamer Ribbons
+            state.flagTimer += 0.08;
+            const windFactor = state.wind * 1.5;
+            const flagWave1 = Math.sin(state.flagTimer) * 4;
+            const flagWave2 = Math.cos(state.flagTimer * 1.2) * 4;
+
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+
+            // Left Ribbon
+            ctx.beginPath();
+            ctx.moveTo(leftUprightX, topUprightY);
+            ctx.quadraticCurveTo(leftUprightX + windFactor * 0.5, topUprightY - 10 + flagWave1, leftUprightX + windFactor, topUprightY - 5 + flagWave2);
+            ctx.stroke();
+
+            // Right Ribbon
+            ctx.beginPath();
+            ctx.moveTo(rightUprightX, topUprightY);
+            ctx.quadraticCurveTo(rightUprightX + windFactor * 0.5, topUprightY - 10 + flagWave2, rightUprightX + windFactor, topUprightY - 5 + flagWave1);
+            ctx.stroke();
+        }
+
+        function drawUIElements(width, height) {
+            const centerX = width / 2;
+            const kickerY = height * 0.88;
+
+            if (state.phase === 'AIMING') {
+                // Wide sweep range: state.aimAngle sweeps from -1.2 to +1.2
+                // Directly mapped to target X position downfield
+                const reticleX = centerX + state.aimAngle * (width * 0.42);
+                const reticleY = height * 0.48 - 35; // Positioned right along goalpost crossbar height
+
+                ctx.strokeStyle = '#38bdf8';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.arc(reticleX, reticleY, 22, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(reticleX - 30, reticleY); ctx.lineTo(reticleX - 10, reticleY);
+                ctx.moveTo(reticleX + 10, reticleY); ctx.lineTo(reticleX + 30, reticleY);
+                ctx.moveTo(reticleX, reticleY - 30); ctx.lineTo(reticleX, reticleY - 10);
+                ctx.moveTo(reticleX, reticleY + 10); ctx.lineTo(reticleX, reticleY + 30);
+                ctx.stroke();
+
+                // Aim trajectory guide line from tee to reticle
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 6]);
+                ctx.beginPath();
+                ctx.moveTo(centerX, kickerY);
+                ctx.lineTo(reticleX, reticleY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#38bdf8';
+                ctx.font = '9px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText(`LOCK AIMING (KICK ${state.currentKick}/3)`, centerX, kickerY - 135);
+            }
+
+            if (state.phase === 'POWER') {
+                const barWidth = 220;
+                const barHeight = 24;
+                const barX = centerX - barWidth / 2;
+                const barY = kickerY - 105;
+
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(barX - 4, barY - 4, barWidth + 8, barHeight + 8);
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 3;
+                ctx.strokeRect(barX - 4, barY - 4, barWidth + 8, barHeight + 8);
+
+                const fillW = barWidth * state.power;
+                const grad = ctx.createLinearGradient(barX, 0, barX + barWidth, 0);
+                grad.addColorStop(0, '#22c55e');
+                grad.addColorStop(0.7, '#eab308');
+                grad.addColorStop(1, '#ef4444');
+                ctx.fillStyle = grad;
+                ctx.fillRect(barX, barY, fillW, barHeight);
+
+                // Target Sweet Spot
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(barX + barWidth * 0.8, barY - 5);
+                ctx.lineTo(barX + barWidth * 0.8, barY + barHeight + 5);
+                ctx.stroke();
+
+                ctx.fillStyle = '#f59e0b';
+                ctx.font = '9px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('SET KICK POWER!', centerX, barY - 14);
+            }
+
+            if (state.phase === 'AIMING' || state.phase === 'POWER') {
+                // Football tee
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(centerX - 10, kickerY + 8, 20, 6);
+
+                ctx.fillStyle = '#7c2d12';
+                ctx.beginPath();
+                ctx.ellipse(centerX, kickerY, 8, 14, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+        }
+
+        function updateGame(dt) {
+            if (state.cameraShake > 0) {
+                state.cameraShake *= 0.9;
+                if (state.cameraShake < 0.4) state.cameraShake = 0;
+            }
+
+            if (state.phase === 'AIMING') {
+                // Aim reticle sweeps left-to-right at progressive speed
+                const baseSpeed = 1.25;
+                state.aimAngle += state.aimDir * baseSpeed * state.aimSpeedMult * dt;
+                if (state.aimAngle > 1.25) { state.aimAngle = 1.25; state.aimDir = -1; }
+                if (state.aimAngle < -1.25) { state.aimAngle = -1.25; state.aimDir = 1; }
+            } else if (state.phase === 'POWER') {
+                state.power += state.powerDir * 1.8 * dt;
+                if (state.power > 1) { state.power = 1; state.powerDir = -1; }
+                if (state.power < 0) { state.power = 0; state.powerDir = 1; }
+            } else if (state.phase === 'KICKING') {
+                const b = state.ball;
+                b.x += b.vx * dt;
+                b.y += b.vy * dt;
+                b.z += b.vz * dt;
+                b.vy -= 360 * dt; // Gravity trajectory
+                b.vx += (state.wind * 0.95) * dt; // Wind push
+                b.spin += 16 * dt;
+
+                // Evaluate kick when ball reaches depth z = 480 (Goalpost plane)
+                if (b.z >= 480 && !b.resolved) {
+                    b.resolved = true;
+                    evaluateKickResult(b);
+                }
+
+                if (b.y <= -40 || b.z > 680) {
+                    if (!b.resolved) {
+                        b.resolved = true;
+                        evaluateKickResult(b);
+                    }
+                }
+            }
+
+            for (let i = state.particles.length - 1; i >= 0; i--) {
+                const p = state.particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) {
+                    state.particles.splice(i, 1);
+                }
+            }
+        }
+
+        function evaluateKickResult(b) {
+            const canvasWidth = canvas.width / window.devicePixelRatio;
+            const centerX = canvasWidth / 2;
+            const postWidth = 160;
+
+            const projectedX = centerX + b.x;
+            const leftPost = centerX - postWidth / 2;
+            const rightPost = centerX + postWidth / 2;
+
+            // Strict goalpost boundaries
+            const isBetweenPosts = projectedX >= leftPost + 5 && projectedX <= rightPost - 5;
+            const isHighEnough = b.y >= 75 && b.y <= 380;
+
+            const isGood = isBetweenPosts && isHighEnough && b.z >= 420;
+            showResultBanner(isGood, projectedX < leftPost ? 'LEFT' : projectedX > rightPost ? 'RIGHT' : 'LOW');
+        }
+
+        function showResultBanner(isGood, missType) {
+            state.phase = 'RESULT';
+            const banner = document.getElementById('result-banner');
+            const resultText = document.getElementById('result-text');
+
+            const canvasWidth = canvas.width / window.devicePixelRatio;
+            const canvasHeight = canvas.height / window.devicePixelRatio;
+
+            if (isGood) {
+                sound.playSuccess();
+                const roundPoints = state.distance * 10 + Math.abs(state.wind) * 15 + Math.floor(state.power * 200);
+                state.score += roundPoints;
+                state.kicksMade += 1;
+
+                resultText.textContent = "IT'S GOOD! 🏈✨";
+                resultText.className = "font-arcade text-xl md:text-3xl px-6 py-3 rounded-2xl shadow-2xl border-4 bg-slate-950/90 text-cyan-400 border-cyan-400 text-center tracking-wider animate-bounce";
+                
+                spawnConfetti(canvasWidth / 2, canvasHeight * 0.45);
+                state.cameraShake = 8;
+            } else {
+                sound.playFail();
+                let subtext = "MISSED!";
+                if (missType === 'LEFT') subtext = "MISSED WIDE LEFT! ❌";
+                if (missType === 'RIGHT') subtext = "MISSED WIDE RIGHT! ❌";
+                if (missType === 'LOW') subtext = "SHORT / LOW! ❌";
+
+                resultText.textContent = subtext;
+                resultText.className = "font-arcade text-lg md:text-2xl px-6 py-3 rounded-2xl shadow-2xl border-4 bg-slate-950/90 text-rose-500 border-rose-500 text-center tracking-wider";
+                state.cameraShake = 5;
+            }
+
+            document.getElementById('score-val').textContent = state.score;
+
+            banner.style.opacity = '1';
+            banner.style.transform = 'scale(1)';
+
+            setTimeout(() => {
+                banner.style.opacity = '0';
+                banner.style.transform = 'scale(0.7)';
+
+                if (state.currentKick < MAX_KICKS) {
+                    state.currentKick += 1;
+                    resetKickRound();
+                } else {
+                    triggerGameOver();
+                }
+            }, 2300);
+        }
+
+        function triggerGameOver() {
+            state.phase = 'GAMEOVER';
+            
+            if (state.score > state.highScore) {
+                state.highScore = state.score;
+                localStorage.setItem('gooseneck_high_score', state.highScore);
+                document.getElementById('high-score-val').textContent = state.highScore;
+            }
+
+            document.getElementById('summary-made').textContent = `${state.kicksMade} / ${MAX_KICKS}`;
+            document.getElementById('summary-score').textContent = `${state.score} PTS`;
+            document.getElementById('summary-high').textContent = `${state.highScore} PTS`;
+
+            const overModal = document.getElementById('gameover-overlay');
+            overModal.style.pointerEvents = 'auto';
+            overModal.style.opacity = '1';
+        }
+
+        function triggerAction() {
+            if (state.phase === 'AIMING') {
+                sound.playTone(600, 'sine', 0.08);
+                state.phase = 'POWER';
+            } else if (state.phase === 'POWER') {
+                sound.playKick();
+                state.phase = 'KICKING';
+
+                const canvasWidth = canvas.width / window.devicePixelRatio;
+                
+                // Directly map stopped aim angle to initial velocity X
+                // state.aimAngle ranges from -1.25 to +1.25
+                const aimXVelocity = state.aimAngle * 320;
+                const powerMult = 0.85 + (state.power * 0.52);
+
+                state.ball = {
+                    x: 0,
+                    y: 0,
+                    z: 0,
+                    vx: aimXVelocity * powerMult,
+                    vy: 275 * powerMult,
+                    vz: 390 * powerMult,
+                    spin: 0,
+                    resolved: false
+                };
+
+                state.cameraShake = 5;
+            }
+        }
+
+        let lastTime = performance.now();
+        function gameLoop(now) {
+            const dt = Math.min((now - lastTime) / 1000, 0.1);
+            lastTime = now;
+
+            const width = canvas.width / window.devicePixelRatio;
+            const height = canvas.height / window.devicePixelRatio;
+
+            ctx.save();
+            if (state.cameraShake > 0) {
+                const shakeX = (Math.random() - 0.5) * state.cameraShake;
+                const shakeY = (Math.random() - 0.5) * state.cameraShake;
+                ctx.translate(shakeX, shakeY);
+            }
+
+            ctx.clearRect(0, 0, width, height);
+            drawStadium(width, height);
+            drawGooseneckGoalpost(width, height);
+
+            if (state.phase === 'KICKING') {
+                const b = state.ball;
+                const scaleFactor = 480 / (480 + b.z);
+                const screenX = width / 2 + b.x * scaleFactor;
+                const screenY = height * 0.48 - (b.y * scaleFactor * 0.65) + ((480 - b.z) * 0.22);
+
+                const ballRadius = Math.max(3, 14 * scaleFactor);
+
+                ctx.save();
+                ctx.translate(screenX, screenY);
+                ctx.rotate(b.spin);
+
+                // Football Body
+                ctx.fillStyle = '#7c2d12';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, ballRadius, ballRadius * 1.38, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = Math.max(1, 2 * scaleFactor);
+                ctx.stroke();
+
+                // Laces
+                if (ballRadius > 5) {
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -ballRadius * 0.45);
+                    ctx.lineTo(0, ballRadius * 0.45);
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // Draw Confetti
+            state.particles.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.alpha;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+            });
+            ctx.globalAlpha = 1.0;
+
+            drawUIElements(width, height);
+            ctx.restore();
+
+            updateGame(dt);
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            sound.init();
+            document.getElementById('instruction-overlay').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('instruction-overlay').style.display = 'none';
+                state.currentKick = 1;
+                state.score = 0;
+                state.kicksMade = 0;
+                document.getElementById('score-val').textContent = '0';
+                resetKickRound();
+            }, 300);
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            const overModal = document.getElementById('gameover-overlay');
+            overModal.style.opacity = '0';
+            overModal.style.pointerEvents = 'none';
+
+            state.currentKick = 1;
+            state.score = 0;
+            state.kicksMade = 0;
+            document.getElementById('score-val').textContent = '0';
+            resetKickRound();
+        });
+
+        canvas.addEventListener('click', () => {
+            if (state.phase === 'AIMING' || state.phase === 'POWER') {
+                triggerAction();
+            }
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (state.phase === 'AIMING' || state.phase === 'POWER') {
+                    triggerAction();
+                }
+            }
+        });
+
+        document.getElementById('download-btn').addEventListener('click', () => {
+            const htmlContent = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'gooseneck_field_goal_game.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
